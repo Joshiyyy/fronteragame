@@ -576,10 +576,11 @@
       const btnRight = document.getElementById("btn-right");
 
       // ============================================================
-      // HIGHSCORE & NUTZERNAME VERWALTUNG (localStorage + Fallback)
+      // HIGHSCORE (Server für alle Geräte, localStorage als Backup)
       // ============================================================
       const STORAGE_SCORES_KEY = "frontera_b_highscores_v1";
       const STORAGE_NAME_KEY = "frontera_b_username_v1";
+      const SCORES_URL = "/fronteragame/scores";
 
       const defaultHighscores = [
         { id: "def-1", name: "Rüsselsheim-Profi", score: 260 },
@@ -589,9 +590,10 @@
         { id: "def-5", name: "TÜV-Prüfer", score: 30 }
       ];
 
-      let memoryScores = [...defaultHighscores];
+      let memoryScores = defaultHighscores.map((entry) => ({ ...entry }));
       let currentPlayerName = "Frontera-Pilot";
       let lastSavedEntryId = null;
+      let scoreSync = Promise.resolve();
 
       function loadSavedUsername() {
         try {
@@ -613,21 +615,79 @@
         return clean;
       }
 
-      function getHighscores() {
+      function readLocalScores() {
         try {
           const raw = localStorage.getItem(STORAGE_SCORES_KEY);
-          if (!raw) {
-            localStorage.setItem(STORAGE_SCORES_KEY, JSON.stringify(defaultHighscores));
-            return [...defaultHighscores];
-          }
+          if (!raw) return null;
           const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        } catch (e) {
-          return [...memoryScores];
-        }
-        return [...defaultHighscores];
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+        return null;
+      }
+
+      function writeLocalScores(entries) {
+        memoryScores = entries.slice(0, 5).map((entry) => ({ ...entry }));
+        try {
+          localStorage.setItem(STORAGE_SCORES_KEY, JSON.stringify(memoryScores));
+        } catch (e) {}
+      }
+
+      function isDefaultOnly(entries) {
+        return !entries.some((entry) => !String(entry.id || "").startsWith("def-"));
+      }
+
+      function getHighscores() {
+        const local = memoryScores.length ? memoryScores : readLocalScores();
+        if (local && local.length) return local.map((entry) => ({ ...entry }));
+        return defaultHighscores.map((entry) => ({ ...entry }));
+      }
+
+      async function fetchScores() {
+        const response = await fetch(SCORES_URL, { cache: "no-store" });
+        if (!response.ok) throw new Error("scores");
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error("scores");
+        return data;
+      }
+
+      async function postScores(entries) {
+        const response = await fetch(SCORES_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entries })
+        });
+        if (!response.ok) throw new Error("scores");
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error("scores");
+        return data;
+      }
+
+      function applyScores(entries) {
+        writeLocalScores(entries);
+        renderHighscoreTables();
+      }
+
+      function pullHighscores() {
+        scoreSync = scoreSync
+          .then(async () => {
+            applyScores(await fetchScores());
+          })
+          .catch(() => {});
+        return scoreSync;
+      }
+
+      function pushLocalHighscores() {
+        scoreSync = scoreSync
+          .then(async () => {
+            const local = readLocalScores();
+            if (!local || isDefaultOnly(local)) {
+              applyScores(await fetchScores());
+              return;
+            }
+            applyScores(await postScores(local));
+          })
+          .catch(() => {});
+        return scoreSync;
       }
 
       function recordHighscore(name, newScore) {
@@ -646,12 +706,13 @@
         const madeTop5 = top5.some((item) => item.id === entryId);
         lastSavedEntryId = madeTop5 ? entryId : null;
 
-        memoryScores = top5;
-        try {
-          localStorage.setItem(STORAGE_SCORES_KEY, JSON.stringify(top5));
-        } catch (e) {}
-
+        writeLocalScores(top5);
         renderHighscoreTables();
+        scoreSync = scoreSync
+          .then(async () => {
+            applyScores(await postScores(top5));
+          })
+          .catch(() => {});
         return madeTop5;
       }
 
@@ -661,7 +722,7 @@
 
         bodies.forEach((tbody) => {
           tbody.innerHTML = "";
-          scores.forEach((entry, index) => {
+          scores.slice(0, 5).forEach((entry, index) => {
             const tr = document.createElement("tr");
             if (lastSavedEntryId && entry.id === lastSavedEntryId) {
               tr.className = "highlight-row";
@@ -687,7 +748,10 @@
       }
 
       loadSavedUsername();
+      const savedScores = readLocalScores();
+      if (savedScores) memoryScores = savedScores.map((entry) => ({ ...entry }));
       renderHighscoreTables();
+      pushLocalHighscores();
 
       let toastTimeout = null;
       function showPickupToast(text) {
@@ -2049,6 +2113,9 @@
       let spawnTimer = 0;
       let totalTime = 0;
       let gameState = "START_MENU"; // "START_MENU" | "PLAYING" | "GAME_OVER"
+      setInterval(() => {
+        if (gameState === "START_MENU") pullHighscores();
+      }, 8000);
 
       const keys = { left: false, right: false };
       let dragSteerTilt = 0;
@@ -2112,6 +2179,7 @@
         touchControlsEl.classList.add("hidden");
         gameOverScreen.classList.add("hidden");
         renderHighscoreTables();
+        pullHighscores();
         startMenuEl.classList.remove("hidden");
 
         gameState = "START_MENU";
