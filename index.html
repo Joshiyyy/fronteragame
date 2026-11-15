@@ -472,7 +472,7 @@
   <!-- STARTMENÜ -->
   <div id="start-menu" class="overlay-screen">
     <div class="modal">
-      <div class="game-badge">CE OP 69 • 60 FPS Edition</div>
+      <div class="game-badge">CE OP 69 • Waldstrecke</div>
       <h1>Opel Frontera B Runner</h1>
       <p class="subtitle">Weiche Motorschäden & Rost aus – sammle frisches Öl und Ersatzteile!</p>
 
@@ -704,7 +704,7 @@
       // ============================================================
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x0f172a);
-      scene.fog = new THREE.Fog(0x0f172a, 24, 82);
+      scene.fog = new THREE.Fog(0x0f172a, 34, 92);
 
       const camera = new THREE.PerspectiveCamera(
         52,
@@ -731,8 +731,15 @@
       camera.position.set(2.8, 2.2, 5.6);
       camera.lookAt(0, 0.65, 2.2);
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      const mobileGpu = window.matchMedia("(pointer: coarse)").matches;
+      const maxPixelRatio = mobileGpu ? 1 : 1.5;
+      const renderer = new THREE.WebGLRenderer({
+        antialias: !mobileGpu,
+        powerPreference: "high-performance",
+        alpha: false,
+        stencil: false
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
@@ -778,6 +785,99 @@
         tile.position.set(0, -0.1, 10 - i * TILE_LENGTH);
         scene.add(tile);
         floorTiles.push(tile);
+      }
+
+      const forestFloor = new THREE.Mesh(
+        new THREE.PlaneGeometry(52, TOTAL_LENGTH + 24),
+        new THREE.MeshLambertMaterial({ color: 0x0e2616 })
+      );
+      forestFloor.rotation.x = -Math.PI / 2;
+      forestFloor.position.set(0, -0.24, -46);
+      scene.add(forestFloor);
+
+      const vergeGeo = new THREE.PlaneGeometry(3.6, TOTAL_LENGTH + 24);
+      const vergeMat = new THREE.MeshLambertMaterial({ color: 0x174628 });
+      const leftVerge = new THREE.Mesh(vergeGeo, vergeMat);
+      leftVerge.rotation.x = -Math.PI / 2;
+      leftVerge.position.set(-6.75, -0.2, -46);
+      scene.add(leftVerge);
+      const rightVerge = new THREE.Mesh(vergeGeo, vergeMat);
+      rightVerge.rotation.x = -Math.PI / 2;
+      rightVerge.position.set(6.75, -0.2, -46);
+      scene.add(rightVerge);
+
+      const forestMeshes = [];
+      const treeDummy = new THREE.Object3D();
+      const treePlacements = [];
+      const treeLanes = [
+        { x: -6.85, jitter: 0.22 },
+        { x: -9.7, jitter: 0.9 },
+        { x: -13.2, jitter: 1.4 },
+        { x: 6.85, jitter: 0.22 },
+        { x: 9.7, jitter: 0.9 },
+        { x: 13.2, jitter: 1.4 }
+      ];
+      const treeSpacing = 4.55;
+      for (let lane = 0; lane < treeLanes.length; lane++) {
+        const spec = treeLanes[lane];
+        const stagger = (lane % 2) * treeSpacing * 0.48;
+        for (let z = 12 - stagger; z > 12 - TOTAL_LENGTH; z -= treeSpacing) {
+          const wave = Math.sin(lane * 12.3 + z * 0.37);
+          const wave2 = Math.cos(lane * 4.1 + z * 0.17);
+          treePlacements.push({
+            x: spec.x + wave * spec.jitter,
+            z: z + wave2 * 0.55,
+            scale: 0.86 + (wave * 0.5 + 0.5) * 0.72,
+            rot: wave2 * Math.PI
+          });
+        }
+      }
+
+      function makeForestMesh(geometry, material) {
+        const mesh = new THREE.InstancedMesh(geometry, material, treePlacements.length);
+        mesh.frustumCulled = false;
+        mesh.matrixAutoUpdate = false;
+        for (let i = 0; i < treePlacements.length; i++) {
+          const spot = treePlacements[i];
+          treeDummy.position.set(spot.x, 0, spot.z);
+          treeDummy.rotation.set(0, spot.rot, 0);
+          treeDummy.scale.setScalar(spot.scale);
+          treeDummy.updateMatrix();
+          mesh.setMatrixAt(i, treeDummy.matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        scene.add(mesh);
+        forestMeshes.push(mesh);
+      }
+
+      const trunkGeo = new THREE.CylinderGeometry(0.1, 0.17, 1.45, 5);
+      trunkGeo.translate(0, 0.72, 0);
+      const crownLowGeo = new THREE.ConeGeometry(1.08, 1.75, 6);
+      crownLowGeo.translate(0, 1.95, 0);
+      const crownHighGeo = new THREE.ConeGeometry(0.7, 1.28, 5);
+      crownHighGeo.translate(0, 2.95, 0);
+      makeForestMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x4a3424 }));
+      makeForestMesh(crownLowGeo, new THREE.MeshLambertMaterial({ color: 0x166534 }));
+      makeForestMesh(crownHighGeo, new THREE.MeshLambertMaterial({ color: 0x22824a }));
+
+      function scrollTrack(distance) {
+        for (let i = 0; i < floorTiles.length; i++) {
+          floorTiles[i].position.z += distance;
+          if (floorTiles[i].position.z > 12.5) {
+            floorTiles[i].position.z -= TOTAL_LENGTH;
+          }
+        }
+        for (let m = 0; m < forestMeshes.length; m++) {
+          const arr = forestMeshes[m].instanceMatrix.array;
+          const count = forestMeshes[m].count;
+          for (let i = 0; i < count; i++) {
+            const offset = i * 16 + 14;
+            let z = arr[offset] + distance;
+            if (z > 12.5) z -= TOTAL_LENGTH;
+            arr[offset] = z;
+          }
+          forestMeshes[m].instanceMatrix.needsUpdate = true;
+        }
       }
 
       // ============================================================
@@ -1978,6 +2078,7 @@
         player.rotation.y = 0;
         car.body.rotation.z = 0;
         score = 0;
+        scoreShown = 0;
         speed = 17;
         spawnTimer = 0;
         keys.left = false;
@@ -2156,7 +2257,7 @@
 
       window.addEventListener("resize", () => {
         updateCameraProjection();
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
 
@@ -2189,11 +2290,10 @@
       }
 
       // ============================================================
-      // 8. 60-FPS-LIMITER & HAUPTSCHLEIFE
+      // 8. HAUPTSCHLEIFE (jeder Bildschirm-Frame, ohne 60-FPS-Takt)
       // ============================================================
-      const TARGET_FPS = 60;
-      const FRAME_INTERVAL = 1000 / TARGET_FPS;
       let lastFrameTime = performance.now();
+      let scoreShown = -1;
 
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) {
@@ -2204,6 +2304,20 @@
       const playerBox = new THREE.Box3();
       const playerCenter = new THREE.Vector3();
       const playerSize = new THREE.Vector3(0.95, 0.95, 2.0);
+      const hitBox = new THREE.Box3();
+      const hitCenter = new THREE.Vector3();
+      const hitSize = new THREE.Vector3();
+
+      function placeHitbox(obj) {
+        const params = obj.hitbox.geometry.parameters;
+        hitSize.set(params.width, params.height, params.depth);
+        hitCenter.set(
+          obj.mesh.position.x + obj.hitbox.position.x,
+          obj.mesh.position.y + obj.hitbox.position.y,
+          obj.mesh.position.z + obj.hitbox.position.z
+        );
+        hitBox.setFromCenterAndSize(hitCenter, hitSize);
+      }
       const currentLookAt = new THREE.Vector3(0, 0.65, 2.2);
       const showcaseCamPos = new THREE.Vector3();
       const showcaseLookAt = new THREE.Vector3(0, 0.72, 2.2);
@@ -2217,13 +2331,10 @@
           return;
         }
 
-        const elapsed = now - lastFrameTime;
-        if (elapsed < FRAME_INTERVAL) {
-          return;
-        }
-
-        lastFrameTime = now - (elapsed % FRAME_INTERVAL);
-        const dt = Math.min(elapsed / 1000, 0.05);
+        let dt = (now - lastFrameTime) / 1000;
+        lastFrameTime = now;
+        if (dt < 0) dt = 0;
+        if (dt > 0.05) dt = 0.05;
         totalTime += dt;
         const camLerp = 1 - Math.exp(-8 * dt);
 
@@ -2239,12 +2350,7 @@
           camera.lookAt(currentLookAt);
 
           const demoMoveZ = 6 * dt;
-          for (let i = 0; i < floorTiles.length; i++) {
-            floorTiles[i].position.z += demoMoveZ;
-            if (floorTiles[i].position.z > 12.5) {
-              floorTiles[i].position.z -= TOTAL_LENGTH;
-            }
-          }
+          scrollTrack(demoMoveZ);
           const wheelRot = demoMoveZ / 0.27;
           for (let i = 0; i < car.allWheelSpins.length; i++) {
             car.allWheelSpins[i].rotation.x -= wheelRot;
@@ -2259,15 +2365,14 @@
         if (gameState === "PLAYING") {
           speed += dt * 0.42;
           score += dt * 5;
-          scoreEl.textContent = Math.floor(score);
+          const shownScore = Math.floor(score);
+          if (shownScore !== scoreShown) {
+            scoreShown = shownScore;
+            scoreEl.textContent = shownScore;
+          }
 
           const moveZ = speed * dt;
-          for (let i = 0; i < floorTiles.length; i++) {
-            floorTiles[i].position.z += moveZ;
-            if (floorTiles[i].position.z > 12.5) {
-              floorTiles[i].position.z -= TOTAL_LENGTH;
-            }
-          }
+          scrollTrack(moveZ);
 
           const wheelRotation = moveZ / 0.27;
           for (let i = 0; i < car.allWheelSpins.length; i++) {
@@ -2319,8 +2424,8 @@
             obsObj.mesh.position.z += moveZ;
             obsObj.update(dt, totalTime);
 
-            const obsBox = new THREE.Box3().setFromObject(obsObj.hitbox);
-            if (playerBox.intersectsBox(obsBox)) {
+            placeHitbox(obsObj);
+            if (playerBox.intersectsBox(hitBox)) {
               triggerGameOver(obsObj);
               break;
             }
@@ -2337,10 +2442,11 @@
             itemObj.spinMesh.rotation.y += 2.6 * dt;
             itemObj.spinMesh.position.y = Math.sin(totalTime * 5 + i) * 0.06;
 
-            const itemBox = new THREE.Box3().setFromObject(itemObj.hitbox);
-            if (playerBox.intersectsBox(itemBox)) {
+            placeHitbox(itemObj);
+            if (playerBox.intersectsBox(hitBox)) {
               score += itemObj.points;
-              scoreEl.textContent = Math.floor(score);
+              scoreShown = Math.floor(score);
+              scoreEl.textContent = scoreShown;
               showPickupToast(itemObj.toastText);
               scene.remove(itemObj.mesh);
               pickups.splice(i, 1);
