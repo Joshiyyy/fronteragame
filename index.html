@@ -636,10 +636,22 @@
         return !entries.some((entry) => !String(entry.id || "").startsWith("def-"));
       }
 
+      function keepBestPerName(entries) {
+        const best = new Map();
+        entries.forEach((entry) => {
+          const name = String(entry.name || "").trim();
+          const previous = best.get(name);
+          if (!previous || Number(entry.score) > Number(previous.score)) {
+            best.set(name, { ...entry, name: name });
+          }
+        });
+        return [...best.values()].sort((a, b) => b.score - a.score);
+      }
+
       function getHighscores() {
         const local = memoryScores.length ? memoryScores : readLocalScores();
-        if (local && local.length) return local.map((entry) => ({ ...entry }));
-        return defaultHighscores.map((entry) => ({ ...entry }));
+        const source = local && local.length ? local : defaultHighscores;
+        return keepBestPerName(source);
       }
 
       async function fetchScores() {
@@ -701,8 +713,7 @@
           score: finalPoints
         });
 
-        scores.sort((a, b) => b.score - a.score);
-        const top5 = scores.slice(0, 5);
+        const top5 = keepBestPerName(scores).slice(0, 5);
         const madeTop5 = top5.some((item) => item.id === entryId);
         lastSavedEntryId = madeTop5 ? entryId : null;
 
