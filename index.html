@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>3D Opel Frontera B – Werkstatt & Offroad Runner</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f172a;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #f8fafc;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* HUD während der Fahrt */
+    #hud {
+      position: fixed;
+      top: env(safe-area-inset-top, 1rem);
+      left: 1rem;
+      right: 1rem;
+      padding-top: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      pointer-events: none;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+      transition: opacity 0.2s ease;
+    }
+
+    #hud.hidden {
+      display: none;
+    }
+
+    .score-panel {
+      background: rgba(15, 23, 42, 0.78);
+      padding: 0.55rem 0.95rem;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      backdrop-filter: blur(4px);
+    }
+
+    .driver-tag {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-bottom: 0.15rem;
+    }
+
+    #pickup-toast {
+      margin-top: 0.4rem;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #4ade80;
+      opacity: 0;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      transform: translateY(4px);
+    }
+
+    #pickup-toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 0.5rem;
+      pointer-events: auto;
+    }
+
+    .hud-btn {
+      background: rgba(15, 23, 42, 0.82);
+      color: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 10px;
+      padding: 0.5rem 0.8rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      transition: transform 0.1s ease, background-color 0.15s ease;
+    }
+
+    .hud-btn:active {
+      transform: scale(0.94);
+      background: rgba(56, 189, 248, 0.35);
+    }
+
+    /* Touch-Steuerung unten für Handy & Tablet */
+    #touch-controls {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem);
+      left: 1.25rem;
+      right: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    #touch-controls.hidden {
+      display: none;
+    }
+
+    .steer-btn {
+      width: 4.6rem;
+      height: 4.6rem;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.65);
+      border: 2px solid rgba(56, 189, 248, 0.55);
+      color: #f8fafc;
+      font-size: 1.75rem;
+      font-weight: 900;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      pointer-events: auto;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      transition: transform 0.08s ease, background-color 0.1s ease;
+    }
+
+    .steer-btn.active,
+    .steer-btn:active {
+      background: rgba(56, 189, 248, 0.45);
+      border-color: #7dd3fc;
+      transform: scale(0.92);
+    }
+
+    /* Overlays für Startmenü & Game Over */
+    .overlay-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.68);
+      backdrop-filter: blur(6px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+      z-index: 25;
+      overflow-y: auto;
+      touch-action: auto;
+    }
+
+    .overlay-screen.hidden {
+      display: none;
+    }
+
+    .modal {
+      background: rgba(30, 41, 59, 0.94);
+      border: 1px solid #475569;
+      border-radius: 18px;
+      padding: 1.65rem 1.65rem;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.55);
+      touch-action: auto;
+    }
+
+    .game-badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.16);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      color: #7dd3fc;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.28rem 0.7rem;
+      border-radius: 999px;
+      margin-bottom: 0.55rem;
+    }
+
+    .modal h1 {
+      font-size: 1.7rem;
+      color: #f8fafc;
+      margin-bottom: 0.35rem;
+    }
+
+    .modal.crash-modal h1 {
+      color: #f43f5e;
+    }
+
+    .subtitle {
+      font-size: 0.92rem;
+      color: #94a3b8;
+      margin-bottom: 1.15rem;
+    }
+
+    /* Fahrername Eingabefeld */
+    .input-group {
+      text-align: left;
+      margin-bottom: 1rem;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #cbd5e1;
+      margin-bottom: 0.35rem;
+    }
+
+    .name-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      width: 100%;
+      padding: 0.72rem 0.9rem;
+      border-radius: 10px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #f8fafc;
+      font-size: 16px;
+      font-weight: 600;
+      outline: none;
+      -webkit-user-select: text;
+      user-select: text;
+      touch-action: manipulation;
+      transition: border-color 0.15s ease;
+    }
+
+    input[type="text"]:focus {
+      border-color: #38bdf8;
+    }
+
+    .color-pill-btn {
+      background: #0f172a;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      border-radius: 10px;
+      padding: 0 0.85rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .color-pill-btn:active {
+      transform: scale(0.96);
+    }
+
+    /* Highscore Tabelle */
+    .highscore-box {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 1.2rem;
+      text-align: left;
+    }
+
+    .highscore-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #facc15;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.5rem;
+    }
+
+    .highscore-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .highscore-table td {
+      padding: 0.36rem 0.3rem;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.65);
+    }
+
+    .highscore-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .highscore-table tr.highlight-row {
+      background: rgba(56, 189, 248, 0.16);
+      color: #7dd3fc;
+      font-weight: 700;
+    }
+
+    .rank-col {
+      width: 2.1rem;
+      font-weight: 800;
+      color: #94a3b8;
+    }
+
+    .rank-1 { color: #facc15; }
+    .rank-2 { color: #e2e8f0; }
+    .rank-3 { color: #d97706; }
+
+    .score-col {
+      text-align: right;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .damage-reason {
+      display: inline-block;
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.45);
+      color: #fda4af;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.42rem 0.8rem;
+      border-radius: 8px;
+      margin-bottom: 0.85rem;
+    }
+
+    .record-banner {
+      display: inline-block;
+      background: rgba(250, 204, 21, 0.18);
+      border: 1px solid rgba(250, 204, 21, 0.55);
+      color: #fde047;
+      font-size: 0.88rem;
+      font-weight: 800;
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 0.85rem;
+    }
+
+    .record-banner.hidden {
+      display: none;
+    }
+
+    .final-score-text {
+      font-size: 1.15rem;
+      margin-bottom: 1rem;
+      color: #e2e8f0;
+    }
+
+    .btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .primary-btn {
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      border-radius: 12px;
+      padding: 0.85rem 1.4rem;
+      width: 100%;
+      font-size: 1.05rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.12s ease, background-color 0.15s ease;
+    }
+
+    .primary-btn:hover,
+    .primary-btn:active {
+      background: #7dd3fc;
+      transform: scale(0.98);
+    }
+
+    .secondary-btn {
+      background: #0f172a;
+      color: #cbd5e1;
+      border: 1px solid #475569;
+      border-radius: 12px;
+      padding: 0.72rem 1.2rem;
+      width: 100%;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.15s ease;
+    }
+
+    .secondary-btn:hover,
+    .secondary-btn:active {
+      border-color: #38bdf8;
+      color: #f8fafc;
+      transform: scale(0.98);
+    }
+
+    #error-box {
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      right: 1rem;
+      background: #7f1d1d;
+      color: #ffffff;
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      z-index: 9999;
+      display: none;
+    }
+
+    @media (max-width: 480px) {
+      #hud {
+        font-size: 0.98rem;
+      }
+      .hud-btn {
+        padding: 0.45rem 0.65rem;
+        font-size: 0.82rem;
+      }
+      .steer-btn {
+        width: 4.3rem;
+        height: 4.3rem;
+      }
+      .modal {
+        padding: 1.35rem 1.2rem;
+      }
+    }
+  </style>
+
+  <!-- Three.js mit automatischem Backup-Server -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+    if (typeof THREE === "undefined") {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <!-- HUD während des Spiels -->
+  <div id="hud" class="hidden">
+    <div>
+      <div class="score-panel">
+        <div class="driver-tag" id="hud-driver">Fahrer: Frontera-Pilot</div>
+        <div>Punkte: <span id="score">0</span></div>
+      </div>
+      <div id="pickup-toast">+15 Frisches 10W-40 Motoröl!</div>
+    </div>
+
+    <div class="top-actions">
+      <button id="btn-color" class="hud-btn" type="button" title="Taste C">🎨 Lack</button>
+      <button id="btn-cam" class="hud-btn" type="button" title="Taste V">📷 Kamera</button>
+    </div>
+  </div>
+
+  <!-- Touch-Steuerung für Smartphone & Tablet -->
+  <div id="touch-controls" class="hidden">
+    <button id="btn-left" class="steer-btn" type="button" aria-label="Links lenken">◀</button>
+    <button id="btn-right" class="steer-btn" type="button" aria-label="Rechts lenken">▶</button>
+  </div>
+
+  <!-- STARTMENÜ -->
+  <div id="start-menu" class="overlay-screen">
+    <div class="modal">
+      <div class="game-badge">CE OP 69 • 60 FPS Edition</div>
+      <h1>Opel Frontera B Runner</h1>
+      <p class="subtitle">Weiche Motorschäden & Rost aus – sammle frisches Öl und Ersatzteile!</p>
+
+      <div class="input-group">
+        <label for="username-input">Fahrername festlegen</label>
+        <div class="name-row">
+          <input
+            type="text"
+            id="username-input"
+            placeholder="Dein Name..."
+            maxlength="16"
+            autocomplete="off"
+          >
+          <button id="menu-color-btn" class="color-pill-btn" type="button">🎨 Lack</button>
+        </div>
+      </div>
+
+      <div class="highscore-box">
+        <div class="highscore-header">
+          <span>🏆 Highscore-Tabelle</span>
+          <span>Top 5</span>
+        </div>
+        <table class="highscore-table">
+          <tbody id="start-highscore-body"></tbody>
+        </table>
+      </div>
+
+      <button id="start-btn" class="primary-btn" type="button">Fahrt starten</button>
+    </div>
+  </div>
+
+  <!-- GAME OVER MENÜ -->
+  <div id="game-over" class="overlay-screen hidden">
+    <div class="modal crash-modal">
+      <h1 id="crash-title">Motorschaden!</h1>
+      <div class="damage-reason" id="crash-detail">Kolbenfresser & überhitzter Block</div>
+      <div>
+        <div class="record-banner hidden" id="record-banner">🏆 Neuer Highscore-Eintrag!</div>
+      </div>
+      <p class="final-score-text">
+        <strong id="final-driver">Fahrer</strong>: <strong id="final-score">0</strong> Punkte
+      </p>
+
+      <div class="highscore-box">
+        <div class="highscore-header">
+          <span>🏆 Bestenliste</span>
+          <span>Top 5</span>
+        </div>
+        <table class="highscore-table">
+          <tbody id="gameover-highscore-body"></tbody>
+        </table>
+      </div>
+
+      <div class="btn-stack">
+        <button id="restart-btn" class="primary-btn" type="button">Nochmal fahren (Leertaste)</button>
+        <button id="to-menu-btn" class="secondary-btn" type="button">Startmenü & Namen ändern</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="error-box"></div>
+
+  <script>
+    const errorBox = document.getElementById("error-box");
+    function showError(msg) {
+      errorBox.style.display = "block";
+      errorBox.textContent = "Fehler: " + msg;
+    }
+
+    window.addEventListener("error", (e) => showError(e.message));
+
+    if (typeof THREE === "undefined") {
+      showError("Three.js konnte nicht geladen werden. Bitte Internetverbindung prüfen.");
+    } else {
+      // DOM-Elemente
+      const hudEl = document.getElementById("hud");
+      const hudDriverEl = document.getElementById("hud-driver");
+      const scoreEl = document.getElementById("score");
+      const pickupToastEl = document.getElementById("pickup-toast");
+      const touchControlsEl = document.getElementById("touch-controls");
+
+      const startMenuEl = document.getElementById("start-menu");
+      const usernameInput = document.getElementById("username-input");
+      const menuColorBtn = document.getElementById("menu-color-btn");
+      const startBtn = document.getElementById("start-btn");
+      const startHighscoreBody = document.getElementById("start-highscore-body");
+
+      const gameOverScreen = document.getElementById("game-over");
+      const crashTitleEl = document.getElementById("crash-title");
+      const crashDetailEl = document.getElementById("crash-detail");
+      const recordBannerEl = document.getElementById("record-banner");
+      const finalDriverEl = document.getElementById("final-driver");
+      const finalScoreEl = document.getElementById("final-score");
+      const gameoverHighscoreBody = document.getElementById("gameover-highscore-body");
+      const restartBtn = document.getElementById("restart-btn");
+      const toMenuBtn = document.getElementById("to-menu-btn");
+
+      const btnColor = document.getElementById("btn-color");
+      const btnCam = document.getElementById("btn-cam");
+      const btnLeft = document.getElementById("btn-left");
+      const btnRight = document.getElementById("btn-right");
+
+      // ============================================================
+      // HIGHSCORE & NUTZERNAME VERWALTUNG (localStorage + Fallback)
+      // ============================================================
+      const STORAGE_SCORES_KEY = "frontera_b_highscores_v1";
+      const STORAGE_NAME_KEY = "frontera_b_username_v1";
+
+      const defaultHighscores = [
+        { id: "def-1", name: "Rüsselsheim-Profi", score: 260 },
+        { id: "def-2", name: "Offroad-Celle", score: 175 },
+        { id: "def-3", name: "Schrauber-König", score: 110 },
+        { id: "def-4", name: "2.2 DTI Fan", score: 65 },
+        { id: "def-5", name: "TÜV-Prüfer", score: 30 }
+      ];
+
+      let memoryScores = [...defaultHighscores];
+      let currentPlayerName = "Frontera-Pilot";
+      let lastSavedEntryId = null;
+
+      function loadSavedUsername() {
+        try {
+          const saved = localStorage.getItem(STORAGE_NAME_KEY);
+          if (saved && saved.trim()) {
+            usernameInput.value = saved.trim();
+            currentPlayerName = saved.trim();
+          }
+        } catch (e) {}
+      }
+
+      function saveUsername(name) {
+        const clean = name.trim() || "Frontera-Pilot";
+        currentPlayerName = clean;
+        usernameInput.value = clean;
+        try {
+          localStorage.setItem(STORAGE_NAME_KEY, clean);
+        } catch (e) {}
+        return clean;
+      }
+
+      function getHighscores() {
+        try {
+          const raw = localStorage.getItem(STORAGE_SCORES_KEY);
+          if (!raw) {
+            localStorage.setItem(STORAGE_SCORES_KEY, JSON.stringify(defaultHighscores));
+            return [...defaultHighscores];
+          }
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        } catch (e) {
+          return [...memoryScores];
+        }
+        return [...defaultHighscores];
+      }
+
+      function recordHighscore(name, newScore) {
+        const finalPoints = Math.floor(newScore);
+        const scores = getHighscores();
+        const entryId = "run-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
+
+        scores.push({
+          id: entryId,
+          name: name,
+          score: finalPoints
+        });
+
+        scores.sort((a, b) => b.score - a.score);
+        const top5 = scores.slice(0, 5);
+        const madeTop5 = top5.some((item) => item.id === entryId);
+        lastSavedEntryId = madeTop5 ? entryId : null;
+
+        memoryScores = top5;
+        try {
+          localStorage.setItem(STORAGE_SCORES_KEY, JSON.stringify(top5));
+        } catch (e) {}
+
+        renderHighscoreTables();
+        return madeTop5;
+      }
+
+      function renderHighscoreTables() {
+        const scores = getHighscores();
+        const bodies = [startHighscoreBody, gameoverHighscoreBody];
+
+        bodies.forEach((tbody) => {
+          tbody.innerHTML = "";
+          scores.forEach((entry, index) => {
+            const tr = document.createElement("tr");
+            if (lastSavedEntryId && entry.id === lastSavedEntryId) {
+              tr.className = "highlight-row";
+            }
+
+            const rankTd = document.createElement("td");
+            rankTd.className = "rank-col " + (index < 3 ? "rank-" + (index + 1) : "");
+            rankTd.textContent = "#" + (index + 1);
+
+            const nameTd = document.createElement("td");
+            nameTd.textContent = entry.name;
+
+            const scoreTd = document.createElement("td");
+            scoreTd.className = "score-col";
+            scoreTd.textContent = entry.score + " Pkt";
+
+            tr.appendChild(rankTd);
+            tr.appendChild(nameTd);
+            tr.appendChild(scoreTd);
+            tbody.appendChild(tr);
+          });
+        });
+      }
+
+      loadSavedUsername();
+      renderHighscoreTables();
+
+      let toastTimeout = null;
+      function showPickupToast(text) {
+        pickupToastEl.textContent = text;
+        pickupToastEl.classList.add("visible");
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          pickupToastEl.classList.remove("visible");
+        }, 1400);
+      }
+
+      // ============================================================
+      // 1. SZENE, KAMERA UND RENDERER (GPU-SCHONEND OPTIMIERT)
+      // ============================================================
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+      scene.fog = new THREE.Fog(0x0f172a, 24, 82);
+
+      const camera = new THREE.PerspectiveCamera(
+        52,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        120
+      );
+
+      const cameraModes = [
+        { pos: new THREE.Vector3(0, 3.6, 7.6), look: new THREE.Vector3(0, 0.7, -4.5) },
+        { pos: new THREE.Vector3(0, 2.25, 5.2), look: new THREE.Vector3(0, 0.72, -1.5) },
+        { pos: new THREE.Vector3(2.9, 2.1, -1.6), look: new THREE.Vector3(0, 0.65, 2.2) }
+      ];
+      let currentCamMode = 0;
+
+      function updateCameraProjection() {
+        const aspect = window.innerWidth / window.innerHeight;
+        camera.aspect = aspect;
+        camera.fov = aspect < 1 ? Math.min(78, 52 / Math.pow(aspect, 0.46)) : 52;
+        camera.updateProjectionMatrix();
+      }
+
+      updateCameraProjection();
+      camera.position.set(2.8, 2.2, 5.6);
+      camera.lookAt(0, 0.65, 2.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // 2. Licht
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.15);
+      dirLight.position.set(6, 14, 9);
+      scene.add(dirLight);
+
+      const rearFillLight = new THREE.DirectionalLight(0xe0f2fe, 0.55);
+      rearFillLight.position.set(-4, 5, 12);
+      scene.add(rearFillLight);
+
+      // 3. Butterweicher 3D-Boden
+      const floorTiles = [];
+      const TILE_COUNT = 24;
+      const TILE_LENGTH = 5;
+      const TOTAL_LENGTH = TILE_COUNT * TILE_LENGTH;
+
+      const tileGeo = new THREE.BoxGeometry(10, 0.2, TILE_LENGTH);
+      const tileMatA = new THREE.MeshStandardMaterial({ color: 0x162238, roughness: 0.85 });
+      const tileMatB = new THREE.MeshStandardMaterial({ color: 0x1e2d4a, roughness: 0.85 });
+
+      const railGeo = new THREE.BoxGeometry(0.15, 0.12, TOTAL_LENGTH);
+      const railMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.5
+      });
+
+      const leftRail = new THREE.Mesh(railGeo, railMat);
+      leftRail.position.set(-5.05, 0.06, -45);
+      scene.add(leftRail);
+
+      const rightRail = new THREE.Mesh(railGeo, railMat);
+      rightRail.position.set(5.05, 0.06, -45);
+      scene.add(rightRail);
+
+      for (let i = 0; i < TILE_COUNT; i++) {
+        const tile = new THREE.Mesh(tileGeo, i % 2 === 0 ? tileMatA : tileMatB);
+        tile.position.set(0, -0.1, 10 - i * TILE_LENGTH);
+        scene.add(tile);
+        floorTiles.push(tile);
+      }
+
+      // ============================================================
+      // 4. HOCHAUFLÖSENDE TEXTUREN (OPEL LOGO, KENNZEICHEN, ETIKETTEN)
+      // ============================================================
+
+      function createOpelLogoTexture(includeTypography) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext("2d");
+
+        ctx.clearRect(0, 0, 512, 512);
+
+        if (includeTypography) {
+          ctx.strokeStyle = "rgba(226, 232, 240, 0.85)";
+          ctx.lineWidth = 10;
+          ctx.beginPath();
+          ctx.arc(256, 256, 236, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "900 42px system-ui, Arial, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("O P E L", 256, 92);
+
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "800 38px system-ui, Arial, sans-serif";
+          ctx.fillText("FRONTERA", 256, 424);
+        }
+
+        const cx = 256;
+        const cy = 256;
+        const radius = includeTypography ? 96 : 165;
+        const ringWidth = includeTypography ? 20 : 34;
+
+        const grad = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.5, "#cbd5e1");
+        grad.addColorStop(1, "#64748b");
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = ringWidth;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const scale = radius / 100;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        ctx.fillStyle = grad;
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth = 4;
+
+        ctx.beginPath();
+        ctx.moveTo(-148, -14);
+        ctx.lineTo(18, -32);
+        ctx.lineTo(6, -6);
+        ctx.lineTo(148, 14);
+        ctx.lineTo(-18, 32);
+        ctx.lineTo(-6, 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      // Deutsches Kennzeichen: CE OP 69 inkl. HU- und Zulassungsplakette
+      function createLicensePlateTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, 512, 128);
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth = 10;
+        ctx.strokeRect(5, 5, 502, 118);
+
+        ctx.fillStyle = "#1d4ed8";
+        ctx.fillRect(10, 10, 52, 108);
+        ctx.fillStyle = "#facc15";
+        ctx.beginPath();
+        ctx.arc(36, 36, 12, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 32px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("D", 36, 100);
+
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "900 68px monospace";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("CE", 74, 68);
+
+        ctx.fillStyle = "#f97316";
+        ctx.beginPath();
+        ctx.arc(182, 42, 13, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath();
+        ctx.arc(182, 86, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(182, 86, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#0f172a";
+        ctx.fillText("OP 69", 210, 68);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      function createTaillightTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 256;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#dc2626";
+        ctx.fillRect(0, 0, 128, 95);
+        ctx.fillStyle = "#f59e0b";
+        ctx.fillRect(0, 95, 128, 65);
+        ctx.fillStyle = "#b91c1c";
+        ctx.fillRect(0, 160, 128, 96);
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillRect(24, 185, 80, 42);
+
+        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 6;
+        ctx.strokeRect(0, 0, 128, 256);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      function createLabelSpriteTexture(text, bgColor, borderColor, textColor) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 112;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = bgColor;
+        ctx.beginPath();
+        ctx.roundRect(12, 12, 488, 88, 22);
+        ctx.fill();
+
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 6;
+        ctx.stroke();
+
+        ctx.fillStyle = textColor;
+        ctx.font = "900 34px system-ui, Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 256, 58);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      function createProductLabelTexture(bg, accent, line1, line2) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = accent;
+        ctx.fillRect(0, 0, 256, 56);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "900 32px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(line1, 128, 40);
+
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "900 44px Arial, sans-serif";
+        ctx.fillText(line2, 128, 155);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      const spareCoverLogoTex = createOpelLogoTexture(true);
+      const badgeOnlyLogoTex = createOpelLogoTexture(false);
+      const plateTex = createLicensePlateTexture();
+      const tailLightTex = createTaillightTexture();
+
+      const oilLabelTex = createProductLabelTexture("#facc15", "#dc2626", "MOTORÖL", "10W-40");
+      const batteryLabelTex = createProductLabelTexture("#e2e8f0", "#1d4ed8", "BATTERIE", "12V 74Ah");
+      const filterLabelTex = createProductLabelTexture("#38bdf8", "#0f172a", "ÖLFILTER", "NEU");
+      const coolantLabelTex = createProductLabelTexture("#fbcfe8", "#be185d", "FROSTSCHUTZ", "G12+");
+
+      const badgeTextures = {
+        engine: createLabelSpriteTexture("⚠️ MOTORSCHADEN", "rgba(127, 29, 29, 0.92)", "#f43f5e", "#fecdd3"),
+        gearbox: createLabelSpriteTexture("⚠️ GETRIEBESCHADEN", "rgba(127, 29, 29, 0.92)", "#f43f5e", "#fecdd3"),
+        headgasket: createLabelSpriteTexture("⚠️ ZYLINDERKOPF", "rgba(127, 29, 29, 0.92)", "#f43f5e", "#fecdd3"),
+        rust: createLabelSpriteTexture("⚠️ RAHMENROST", "rgba(124, 45, 18, 0.92)", "#fb923c", "#ffedd5"),
+        diff: createLabelSpriteTexture("⚠️ DIFFERENTIAL", "rgba(127, 29, 29, 0.92)", "#f43f5e", "#fecdd3"),
+        oil: createLabelSpriteTexture("+15 MOTORÖL 10W-40", "rgba(6, 78, 59, 0.92)", "#34d399", "#d1fae5"),
+        battery: createLabelSpriteTexture("+15 BATTERIE 12V", "rgba(6, 78, 59, 0.92)", "#34d399", "#d1fae5"),
+        filter: createLabelSpriteTexture("+10 NEUER ÖLFILTER", "rgba(6, 78, 59, 0.92)", "#34d399", "#d1fae5"),
+        coolant: createLabelSpriteTexture("+10 KÜHLMITTEL", "rgba(6, 78, 59, 0.92)", "#34d399", "#d1fae5"),
+        toolbox: createLabelSpriteTexture("+25 ERSATZTEIL-BOX", "rgba(113, 63, 18, 0.94)", "#facc15", "#fef9c3")
+      };
+
+      function createFloatingBadge(tex, yPos) {
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(2.15, 0.47, 1);
+        sprite.position.set(0, yPos, 0);
+        return sprite;
+      }
+
+      // ============================================================
+      // 5. DETAILREICHES 3D-MODELL: OPEL FRONTERA B (5-TÜRER)
+      // ============================================================
+
+      const paintColors = [0xd1d5db, 0x1b4332, 0x1e293b, 0x1d4ed8];
+      let currentColorIndex = 0;
+
+      const paintMat = new THREE.MeshStandardMaterial({
+        color: paintColors[currentColorIndex],
+        roughness: 0.28,
+        metalness: 0.5
+      });
+      const claddingMat = new THREE.MeshStandardMaterial({
+        color: 0x262b33,
+        roughness: 0.78,
+        metalness: 0.15
+      });
+      const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x090d16,
+        roughness: 0.08,
+        metalness: 0.9
+      });
+      const chromeMat = new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.18,
+        metalness: 0.9
+      });
+      const tireMat = new THREE.MeshStandardMaterial({
+        color: 0x12151a,
+        roughness: 0.92
+      });
+      const headLightMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xfef08a,
+        emissiveIntensity: 0.9
+      });
+      const amberMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xd97706,
+        emissiveIntensity: 0.6
+      });
+      const tailLightMat = new THREE.MeshStandardMaterial({
+        map: tailLightTex,
+        emissive: 0x991b1b,
+        emissiveIntensity: 0.35
+      });
+
+      function createWheel() {
+        const wheelPivot = new THREE.Group();
+        const wheelSpin = new THREE.Group();
+
+        const tire = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.27, 0.27, 0.19, 24),
+          tireMat
+        );
+        tire.rotation.z = Math.PI / 2;
+        wheelSpin.add(tire);
+
+        const treadGeo = new THREE.BoxGeometry(0.20, 0.025, 0.04);
+        for (let a = 0; a < 12; a++) {
+          const angle = (a / 12) * Math.PI * 2;
+          const tread = new THREE.Mesh(treadGeo, tireMat);
+          tread.position.set(0, Math.cos(angle) * 0.268, Math.sin(angle) * 0.268);
+          tread.rotation.x = -angle;
+          wheelSpin.add(tread);
+        }
+
+        const rim = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.16, 0.16, 0.196, 20),
+          chromeMat
+        );
+        rim.rotation.z = Math.PI / 2;
+        wheelSpin.add(rim);
+
+        const spokeGeo = new THREE.BoxGeometry(0.205, 0.028, 0.29);
+        for (let s = 0; s < 3; s++) {
+          const spoke = new THREE.Mesh(spokeGeo, claddingMat);
+          spoke.rotation.x = (s * Math.PI) / 3;
+          wheelSpin.add(spoke);
+        }
+
+        const capMat = new THREE.MeshBasicMaterial({ map: badgeOnlyLogoTex, transparent: true });
+        const capOuter = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), capMat);
+        capOuter.position.x = 0.105;
+        capOuter.rotation.y = Math.PI / 2;
+        wheelSpin.add(capOuter);
+
+        const capInner = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), capMat);
+        capInner.position.x = -0.105;
+        capInner.rotation.y = -Math.PI / 2;
+        wheelSpin.add(capInner);
+
+        wheelPivot.add(wheelSpin);
+        return { pivot: wheelPivot, spin: wheelSpin };
+      }
+
+      function createOpelFronteraB() {
+        const root = new THREE.Group();
+        const body = new THREE.Group();
+        root.add(body);
+
+        const underbody = new THREE.Mesh(
+          new THREE.BoxGeometry(1.16, 0.22, 2.32),
+          claddingMat
+        );
+        underbody.position.set(0, 0.37, 0);
+        body.add(underbody);
+
+        [-0.64, 0.64].forEach((sx) => {
+          const step = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 0.04, 1.05),
+            claddingMat
+          );
+          step.position.set(sx, 0.25, 0.02);
+          body.add(step);
+
+          const stepTrim = new THREE.Mesh(
+            new THREE.BoxGeometry(0.02, 0.042, 1.05),
+            chromeMat
+          );
+          stepTrim.position.set(sx + (sx > 0 ? 0.06 : -0.06), 0.25, 0.02);
+          body.add(stepTrim);
+        });
+
+        const mainBody = new THREE.Mesh(
+          new THREE.BoxGeometry(1.15, 0.29, 2.30),
+          paintMat
+        );
+        mainBody.position.set(0, 0.61, 0);
+        body.add(mainBody);
+
+        const hoodBulge = new THREE.Mesh(
+          new THREE.BoxGeometry(0.62, 0.045, 0.72),
+          paintMat
+        );
+        hoodBulge.position.set(0, 0.765, -0.74);
+        hoodBulge.rotation.x = 0.04;
+        body.add(hoodBulge);
+
+        [-0.585, 0.585].forEach((dx) => {
+          [-0.08, 0.45].forEach((dz) => {
+            const handle = new THREE.Mesh(
+              new THREE.BoxGeometry(0.025, 0.032, 0.11),
+              claddingMat
+            );
+            handle.position.set(dx, 0.67, dz);
+            body.add(handle);
+          });
+        });
+
+        const roof = new THREE.Mesh(
+          new THREE.BoxGeometry(0.98, 0.06, 1.38),
+          paintMat
+        );
+        roof.position.set(0, 1.09, 0.32);
+        body.add(roof);
+
+        const cabinGlass = new THREE.Mesh(
+          new THREE.BoxGeometry(1.01, 0.32, 1.32),
+          glassMat
+        );
+        cabinGlass.position.set(0, 0.91, 0.33);
+        body.add(cabinGlass);
+
+        const windshield = new THREE.Mesh(
+          new THREE.BoxGeometry(0.95, 0.36, 0.08),
+          glassMat
+        );
+        windshield.position.set(0, 0.90, -0.42);
+        windshield.rotation.x = -0.38;
+        body.add(windshield);
+
+        const bPillar = new THREE.Mesh(
+          new THREE.BoxGeometry(1.03, 0.33, 0.07),
+          claddingMat
+        );
+        bPillar.position.set(0, 0.91, -0.02);
+        body.add(bPillar);
+
+        const cPillar = new THREE.Mesh(
+          new THREE.BoxGeometry(1.03, 0.33, 0.09),
+          paintMat
+        );
+        cPillar.position.set(0, 0.91, 0.54);
+        body.add(cPillar);
+
+        [-0.515, 0.515].forEach((kx) => {
+          const beltKick = new THREE.Mesh(
+            new THREE.BoxGeometry(0.03, 0.07, 0.44),
+            paintMat
+          );
+          beltKick.position.set(kx, 0.77, 0.78);
+          beltKick.rotation.x = 0.08;
+          body.add(beltKick);
+        });
+
+        const rearFrame = new THREE.Mesh(
+          new THREE.BoxGeometry(1.03, 0.33, 0.08),
+          paintMat
+        );
+        rearFrame.position.set(0, 0.91, 1.02);
+        body.add(rearFrame);
+
+        const rearGlass = new THREE.Mesh(
+          new THREE.BoxGeometry(0.84, 0.25, 0.03),
+          glassMat
+        );
+        rearGlass.position.set(0, 0.92, 1.055);
+        body.add(rearGlass);
+
+        const rearWiper = new THREE.Mesh(
+          new THREE.BoxGeometry(0.24, 0.02, 0.02),
+          claddingMat
+        );
+        rearWiper.position.set(0.08, 0.83, 1.075);
+        rearWiper.rotation.z = 0.15;
+        body.add(rearWiper);
+
+        const thirdBrake = new THREE.Mesh(
+          new THREE.BoxGeometry(0.26, 0.03, 0.03),
+          new THREE.MeshBasicMaterial({ color: 0xef4444 })
+        );
+        thirdBrake.position.set(0, 1.07, 1.06);
+        body.add(thirdBrake);
+
+        [-0.41, 0.41].forEach((rx) => {
+          const rail = new THREE.Mesh(
+            new THREE.BoxGeometry(0.04, 0.05, 1.28),
+            claddingMat
+          );
+          rail.position.set(rx, 1.14, 0.33);
+          body.add(rail);
+        });
+
+        [0.05, 0.72].forEach((cz) => {
+          const crossbar = new THREE.Mesh(
+            new THREE.BoxGeometry(0.82, 0.025, 0.04),
+            claddingMat
+          );
+          crossbar.position.set(0, 1.15, cz);
+          body.add(crossbar);
+        });
+
+        const antenna = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.006, 0.01, 0.34, 8),
+          claddingMat
+        );
+        antenna.position.set(-0.36, 1.24, -0.25);
+        antenna.rotation.x = -0.28;
+        body.add(antenna);
+
+        [-0.64, 0.64].forEach((mx) => {
+          const mirror = new THREE.Mesh(
+            new THREE.BoxGeometry(0.13, 0.10, 0.10),
+            claddingMat
+          );
+          mirror.position.set(mx, 0.78, -0.34);
+          body.add(mirror);
+        });
+
+        const archGeo = new THREE.BoxGeometry(0.14, 0.27, 0.62);
+        const flapGeo = new THREE.BoxGeometry(0.16, 0.18, 0.03);
+        [
+          [-0.58, -0.72],
+          [0.58, -0.72],
+          [-0.58, 0.72],
+          [0.58, 0.72]
+        ].forEach(([ax, az]) => {
+          const arch = new THREE.Mesh(archGeo, claddingMat);
+          arch.position.set(ax, 0.39, az);
+          body.add(arch);
+
+          const flap = new THREE.Mesh(flapGeo, tireMat);
+          flap.position.set(ax * 0.96, 0.19, az + 0.29);
+          body.add(flap);
+        });
+
+        // Heckstoßstange & Anhängerkupplung
+        const rearBumper = new THREE.Mesh(
+          new THREE.BoxGeometry(1.22, 0.20, 0.16),
+          claddingMat
+        );
+        rearBumper.position.set(0, 0.31, 1.16);
+        body.add(rearBumper);
+
+        const bumperStep = new THREE.Mesh(
+          new THREE.BoxGeometry(0.75, 0.02, 0.12),
+          chromeMat
+        );
+        bumperStep.position.set(0, 0.415, 1.18);
+        body.add(bumperStep);
+
+        const hitchBar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.06, 0.06, 0.18),
+          claddingMat
+        );
+        hitchBar.position.set(0, 0.22, 1.24);
+        body.add(hitchBar);
+
+        const hitchBall = new THREE.Mesh(
+          new THREE.SphereGeometry(0.038, 12, 12),
+          chromeMat
+        );
+        hitchBall.position.set(0, 0.27, 1.31);
+        body.add(hitchBall);
+
+        // Rückleuchten
+        [-0.51, 0.51].forEach((lx) => {
+          const light = new THREE.Mesh(
+            new THREE.BoxGeometry(0.14, 0.26, 0.05),
+            tailLightMat
+          );
+          light.position.set(lx, 0.61, 1.14);
+          body.add(light);
+        });
+
+        // Kennzeichen "CE OP 69" links an der Hecktür
+        const plateMesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.34, 0.085),
+          new THREE.MeshBasicMaterial({ map: plateTex })
+        );
+        plateMesh.position.set(-0.34, 0.56, 1.158);
+        body.add(plateMesh);
+
+        const badgePlate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.16, 0.03, 0.02),
+          chromeMat
+        );
+        badgePlate.position.set(-0.36, 0.70, 1.155);
+        body.add(badgePlate);
+
+        const exhaust = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.038, 0.038, 0.18, 12),
+          chromeMat
+        );
+        exhaust.rotation.x = Math.PI / 2;
+        exhaust.position.set(-0.40, 0.19, 1.19);
+        body.add(exhaust);
+
+        // Reserverad mit OPEL FRONTERA Logo
+        const spareGroup = new THREE.Group();
+        spareGroup.position.set(0.10, 0.66, 1.23);
+
+        const spareTire = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.28, 0.28, 0.17, 28),
+          tireMat
+        );
+        spareTire.rotation.x = Math.PI / 2;
+        spareGroup.add(spareTire);
+
+        const spareHardCover = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.245, 0.245, 0.185, 28),
+          paintMat
+        );
+        spareHardCover.rotation.x = Math.PI / 2;
+        spareGroup.add(spareHardCover);
+
+        const spareDecal = new THREE.Mesh(
+          new THREE.CircleGeometry(0.242, 32),
+          new THREE.MeshBasicMaterial({ map: spareCoverLogoTex, transparent: true })
+        );
+        spareDecal.position.z = 0.095;
+        spareGroup.add(spareDecal);
+
+        body.add(spareGroup);
+
+        // Frontansicht mit Opel-Kühlergrill, Kennzeichen "CE OP 69" & Frontbügel
+        const frontBumper = new THREE.Mesh(
+          new THREE.BoxGeometry(1.22, 0.22, 0.16),
+          claddingMat
+        );
+        frontBumper.position.set(0, 0.32, -1.16);
+        body.add(frontBumper);
+
+        const frontPlate = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.34, 0.085),
+          new THREE.MeshBasicMaterial({ map: plateTex })
+        );
+        frontPlate.position.set(0, 0.33, -1.242);
+        frontPlate.rotation.y = Math.PI;
+        body.add(frontPlate);
+
+        const skidPlate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.64, 0.09, 0.17),
+          chromeMat
+        );
+        skidPlate.position.set(0, 0.22, -1.165);
+        body.add(skidPlate);
+
+        const grilleBg = new THREE.Mesh(
+          new THREE.BoxGeometry(0.58, 0.18, 0.05),
+          claddingMat
+        );
+        grilleBg.position.set(0, 0.61, -1.145);
+        body.add(grilleBg);
+
+        const grilleBar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.56, 0.032, 0.06),
+          chromeMat
+        );
+        grilleBar.position.set(0, 0.62, -1.148);
+        body.add(grilleBar);
+
+        const frontLogo = new THREE.Mesh(
+          new THREE.CircleGeometry(0.085, 24),
+          new THREE.MeshBasicMaterial({ map: badgeOnlyLogoTex, transparent: true })
+        );
+        frontLogo.position.set(0, 0.62, -1.182);
+        frontLogo.rotation.y = Math.PI;
+        body.add(frontLogo);
+
+        [-0.41, 0.41].forEach((hx) => {
+          const headLight = new THREE.Mesh(
+            new THREE.BoxGeometry(0.22, 0.14, 0.05),
+            headLightMat
+          );
+          headLight.position.set(hx, 0.61, -1.148);
+          body.add(headLight);
+
+          const cornerBlinker = new THREE.Mesh(
+            new THREE.BoxGeometry(0.07, 0.14, 0.055),
+            amberMat
+          );
+          cornerBlinker.position.set(hx + (hx > 0 ? 0.14 : -0.14), 0.61, -1.145);
+          body.add(cornerBlinker);
+        });
+
+        [-0.26, 0.26].forEach((bx) => {
+          const barPost = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.024, 0.024, 0.36, 12),
+            claddingMat
+          );
+          barPost.position.set(bx, 0.50, -1.25);
+          barPost.rotation.x = 0.12;
+          body.add(barPost);
+        });
+
+        const topBar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.024, 0.024, 0.56, 12),
+          claddingMat
+        );
+        topBar.rotation.z = Math.PI / 2;
+        topBar.position.set(0, 0.67, -1.27);
+        body.add(topBar);
+
+        [-0.14, 0.14].forEach((fx) => {
+          const lampHousing = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.065, 0.065, 0.06, 16),
+            claddingMat
+          );
+          lampHousing.rotation.x = Math.PI / 2;
+          lampHousing.position.set(fx, 0.53, -1.26);
+          body.add(lampHousing);
+
+          const lampLens = new THREE.Mesh(
+            new THREE.CircleGeometry(0.056, 16),
+            headLightMat
+          );
+          lampLens.position.set(fx, 0.53, -1.292);
+          lampLens.rotation.y = Math.PI;
+          body.add(lampLens);
+        });
+
+        const frontLeft = createWheel();
+        frontLeft.pivot.position.set(-0.56, 0.27, -0.72);
+
+        const frontRight = createWheel();
+        frontRight.pivot.position.set(0.56, 0.27, -0.72);
+
+        const rearLeft = createWheel();
+        rearLeft.pivot.position.set(-0.56, 0.27, 0.72);
+
+        const rearRight = createWheel();
+        rearRight.pivot.position.set(0.56, 0.27, 0.72);
+
+        root.add(frontLeft.pivot, frontRight.pivot, rearLeft.pivot, rearRight.pivot);
+
+        return {
+          root,
+          body,
+          frontWheels: [frontLeft.pivot, frontRight.pivot],
+          allWheelSpins: [frontLeft.spin, frontRight.spin, rearLeft.spin, rearRight.spin]
+        };
+      }
+
+      // ============================================================
+      // 6. DETAILLIERTE 3D-SCHÄDEN (GEGNER) & WARTUNGSTEILE (PUNKTE)
+      // ============================================================
+
+      const castIronMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.7 });
+      const aluminumMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.35, metalness: 0.85 });
+      const hotRedMat = new THREE.MeshStandardMaterial({
+        color: 0xef4444,
+        emissive: 0xdc2626,
+        emissiveIntensity: 0.85
+      });
+      const rustMat = new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.92, metalness: 0.2 });
+      const oilPuddleMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.15, metalness: 0.4 });
+      const coolantPuddleMat = new THREE.MeshStandardMaterial({
+        color: 0x22c55e,
+        emissive: 0x15803d,
+        emissiveIntensity: 0.4
+      });
+      const smokeMat = new THREE.MeshBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.65 });
+
+      function createEngineDamageMesh() {
+        const group = new THREE.Group();
+
+        const oilPan = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.22, 1.0), castIronMat);
+        oilPan.position.y = 0.14;
+        group.add(oilPan);
+
+        const block = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 1.05), castIronMat);
+        block.position.y = 0.52;
+        group.add(block);
+
+        const crackCore = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.24, 0.55), hotRedMat);
+        crackCore.position.y = 0.55;
+        group.add(crackCore);
+
+        [-0.32, 0.32].forEach((vx) => {
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.26, 1.02), aluminumMat);
+          head.position.set(vx, 0.88, 0);
+          head.rotation.z = vx > 0 ? -0.32 : 0.32;
+          group.add(head);
+
+          for (let p = -0.3; p <= 0.3; p += 0.3) {
+            const pipe = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.035, 8, 12, Math.PI), rustMat);
+            pipe.position.set(vx * 1.5, 0.72, p);
+            pipe.rotation.y = Math.PI / 2;
+            group.add(pipe);
+          }
+        });
+
+        const conRod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.45, 10), aluminumMat);
+        conRod.position.set(0.1, 1.1, 0.05);
+        conRod.rotation.z = -0.35;
+        group.add(conRod);
+
+        const piston = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.18, 16), chromeMat);
+        piston.position.set(0.18, 1.28, 0.05);
+        piston.rotation.z = -0.35;
+        group.add(piston);
+
+        const pulley = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 18), chromeMat);
+        pulley.rotation.x = Math.PI / 2;
+        pulley.position.set(0, 0.48, 0.56);
+        group.add(pulley);
+
+        const smokes = [];
+        for (let s = 0; s < 4; s++) {
+          const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18 + s * 0.04), smokeMat);
+          puff.position.set((s - 1.5) * 0.12, 1.15 + s * 0.22, 0);
+          group.add(puff);
+          smokes.push(puff);
+        }
+
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.1, 1.15));
+        hitbox.visible = false;
+        hitbox.position.y = 0.55;
+        group.add(hitbox);
+
+        group.add(createFloatingBadge(badgeTextures.engine, 2.05));
+
+        return {
+          mesh: group,
+          hitbox,
+          title: "Motorschaden!",
+          detail: "Kolbenfresser & geplatzter Motorblock – ab auf den Abschlepper!",
+          update: (dt, t) => {
+            smokes.forEach((p, idx) => {
+              p.position.y = 1.1 + ((t * 1.4 + idx * 0.35) % 1.1);
+              p.rotation.y += dt * 1.5;
+            });
+          }
+        };
+      }
+
+      function createGearboxDamageMesh() {
+        const group = new THREE.Group();
+
+        const puddle = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.75, 0.02, 20), oilPuddleMat);
+        puddle.position.y = 0.015;
+        group.add(puddle);
+
+        const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.44, 0.42, 18), aluminumMat);
+        bell.rotation.x = Math.PI / 2;
+        bell.position.set(0, 0.46, 0.38);
+        group.add(bell);
+
+        const housing = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.52, 0.72), aluminumMat);
+        housing.position.set(0, 0.44, -0.15);
+        group.add(housing);
+
+        const brokenGlow = new THREE.Mesh(new THREE.BoxGeometry(0.59, 0.22, 0.35), hotRedMat);
+        brokenGlow.position.set(0, 0.48, -0.15);
+        group.add(brokenGlow);
+
+        const shifter = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.48, 10), chromeMat);
+        shifter.position.set(0, 0.86, -0.1);
+        shifter.rotation.z = 0.45;
+        group.add(shifter);
+
+        const gears = [];
+        [-0.36, 0.36].forEach((gx, idx) => {
+          const gearGroup = new THREE.Group();
+          const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.07, 16), chromeMat);
+          disc.rotation.z = Math.PI / 2;
+          gearGroup.add(disc);
+
+          for (let tooth = 0; tooth < 8; tooth++) {
+            const ang = (tooth / 8) * Math.PI * 2;
+            const tMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.06), castIronMat);
+            tMesh.position.set(0, Math.cos(ang) * 0.24, Math.sin(ang) * 0.24);
+            tMesh.rotation.x = -ang;
+            gearGroup.add(tMesh);
+          }
+
+          gearGroup.position.set(gx, 0.56 + idx * 0.15, -0.1);
+          group.add(gearGroup);
+          gears.push(gearGroup);
+        });
+
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.0, 1.2));
+        hitbox.visible = false;
+        hitbox.position.y = 0.5;
+        group.add(hitbox);
+
+        group.add(createFloatingBadge(badgeTextures.gearbox, 1.9));
+
+        return {
+          mesh: group,
+          hitbox,
+          title: "Getriebeschaden!",
+          detail: "Zahnausfall im 3. Gang & Getriebegehäuse gerissen!",
+          update: (dt) => {
+            gears[0].rotation.x += dt * 4;
+            gears[1].rotation.x -= dt * 3;
+          }
+        };
+      }
+
+      function createHeadGasketDamageMesh() {
+        const group = new THREE.Group();
+
+        const puddle = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.78, 0.02, 20), coolantPuddleMat);
+        puddle.position.y = 0.015;
+        group.add(puddle);
+
+        const radFrame = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.85, 0.18), castIronMat);
+        radFrame.position.y = 0.48;
+        group.add(radFrame);
+
+        const radCore = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.68, 0.20), hotRedMat);
+        radCore.position.y = 0.48;
+        group.add(radCore);
+
+        const hose = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.055, 10, 16, Math.PI * 1.2), tireMat);
+        hose.position.set(0.28, 0.92, 0.05);
+        group.add(hose);
+
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.04, 14), chromeMat);
+        cap.position.set(-0.35, 1.05, 0.12);
+        cap.rotation.z = 0.5;
+        group.add(cap);
+
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.95, 0.85));
+        hitbox.visible = false;
+        hitbox.position.y = 0.48;
+        group.add(hitbox);
+
+        group.add(createFloatingBadge(badgeTextures.headgasket, 1.9));
+
+        return {
+          mesh: group,
+          hitbox,
+          title: "Zylinderkopfdichtung durch!",
+          detail: "Kühler überhitzt & Kühlwasser komplett ausgelaufen!",
+          update: () => {}
+        };
+      }
+
+      function createRustSuspensionMesh() {
+        const group = new THREE.Group();
+
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.26, 0.42), rustMat);
+        beam.position.set(0, 0.22, 0);
+        beam.rotation.y = 0.25;
+        group.add(beam);
+
+        for (let r = 0; r < 5; r++) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.032, 8, 18), rustMat);
+          ring.rotation.x = Math.PI / 2 + (r > 2 ? 0.25 : 0);
+          ring.position.set(-0.22 + (r > 2 ? 0.08 : 0), 0.35 + r * 0.13, 0);
+          group.add(ring);
+        }
+
+        const shock = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.78, 12), chromeMat);
+        shock.position.set(0.28, 0.52, 0.05);
+        shock.rotation.z = -0.45;
+        group.add(shock);
+
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.95, 0.85));
+        hitbox.visible = false;
+        hitbox.position.y = 0.48;
+        group.add(hitbox);
+
+        group.add(createFloatingBadge(badgeTextures.rust, 1.85));
+
+        return {
+          mesh: group,
+          hitbox,
+          title: "Rahmenrost & Federbruch!",
+          detail: "Der TÜV sagt Nein – Querlenker & Schraubenfeder gebrochen!",
+          update: () => {}
+        };
+      }
+
+      function createDiffDamageMesh() {
+        const group = new THREE.Group();
+
+        const axleTube = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.35, 14), castIronMat);
+        axleTube.rotation.z = Math.PI / 2;
+        axleTube.position.y = 0.34;
+        group.add(axleTube);
+
+        const diffPumpkin = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 16), castIronMat);
+        diffPumpkin.position.y = 0.34;
+        group.add(diffPumpkin);
+
+        const diffCrack = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 14), hotRedMat);
+        diffCrack.position.set(0, 0.36, 0.12);
+        group.add(diffCrack);
+
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.95, 12), chromeMat);
+        shaft.position.set(0.12, 0.65, 0.25);
+        shaft.rotation.x = 0.75;
+        shaft.rotation.z = -0.25;
+        group.add(shaft);
+
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.9, 0.9));
+        hitbox.visible = false;
+        hitbox.position.y = 0.45;
+        group.add(hitbox);
+
+        group.add(createFloatingBadge(badgeTextures.diff, 1.85));
+
+        return {
+          mesh: group,
+          hitbox,
+          title: "Differential-Schaden!",
+          detail: "Allrad-Antrieb & Kardanwelle abgerissen!",
+          update: () => {}
+        };
+      }
+
+      // ============================================================
+      // PLUS-PUNKTE: NEUES MOTORÖL, BATTERIE, ÖLFILTER, KÜHLMITTEL, BOX
+      // ============================================================
+
+      const goldCanMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.35, metalness: 0.3 });
+      const redCapMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
+      const blueFilterMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3, metalness: 0.5 });
+      const pinkCoolantMat = new THREE.MeshStandardMaterial({
+        color: 0xf472b6,
+        roughness: 0.25,
+        transparent: true,
+        opacity: 0.92
+      });
+
+      function createPickupItem(type) {
+        const group = new THREE.Group();
+        const itemMesh = new THREE.Group();
+        group.add(itemMesh);
+
+        let points = 15;
+        let toastText = "+15 Punkte!";
+        let badgeTex = badgeTextures.oil;
+
+        if (type === "oil") {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.72, 0.32), goldCanMat);
+          body.position.y = 0.45;
+          itemMesh.add(body);
+
+          const handleTop = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.12), goldCanMat);
+          handleTop.position.set(-0.08, 0.88, 0);
+          itemMesh.add(handleTop);
+
+          const handlePost = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.12), goldCanMat);
+          handlePost.position.set(-0.20, 0.82, 0);
+          itemMesh.add(handlePost);
+
+          const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.09, 14), redCapMat);
+          cap.position.set(0.18, 0.85, 0);
+          itemMesh.add(cap);
+
+          const labelMat = new THREE.MeshBasicMaterial({ map: oilLabelTex });
+          const frontLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), labelMat);
+          frontLabel.position.set(0, 0.45, 0.163);
+          itemMesh.add(frontLabel);
+
+          const backLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), labelMat);
+          backLabel.position.set(0, 0.45, -0.163);
+          backLabel.rotation.y = Math.PI;
+          itemMesh.add(backLabel);
+
+          points = 15;
+          toastText = "+15 Frisches 10W-40 Motoröl!";
+          badgeTex = badgeTextures.oil;
+        } else if (type === "battery") {
+          const caseBox = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.52, 0.46), claddingMat);
+          caseBox.position.y = 0.36;
+          itemMesh.add(caseBox);
+
+          const topLid = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.07, 0.48), aluminumMat);
+          topLid.position.y = 0.63;
+          itemMesh.add(topLid);
+
+          const plusPole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.11, 12), redCapMat);
+          plusPole.position.set(-0.24, 0.70, 0.12);
+          itemMesh.add(plusPole);
+
+          const minusPole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.11, 12), blueFilterMat);
+          minusPole.position.set(0.24, 0.70, 0.12);
+          itemMesh.add(minusPole);
+
+          const batLabel = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.56, 0.32),
+            new THREE.MeshBasicMaterial({ map: batteryLabelTex })
+          );
+          batLabel.position.set(0, 0.36, 0.233);
+          itemMesh.add(batLabel);
+
+          points = 15;
+          toastText = "+15 Neue 12V 74Ah Autobatterie!";
+          badgeTex = badgeTextures.battery;
+        } else if (type === "filter") {
+          const can = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.56, 22), blueFilterMat);
+          can.position.y = 0.44;
+          itemMesh.add(can);
+
+          const gasket = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.03, 10, 20), tireMat);
+          gasket.rotation.x = Math.PI / 2;
+          gasket.position.y = 0.73;
+          itemMesh.add(gasket);
+
+          const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.04, 14), chromeMat);
+          thread.position.y = 0.73;
+          itemMesh.add(thread);
+
+          const wrapLabel = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.253, 0.253, 0.28, 22, 1, true),
+            new THREE.MeshBasicMaterial({ map: filterLabelTex })
+          );
+          wrapLabel.position.y = 0.44;
+          itemMesh.add(wrapLabel);
+
+          points = 10;
+          toastText = "+10 Neuer Ölfilter eingebaut!";
+          badgeTex = badgeTextures.filter;
+        } else if (type === "coolant") {
+          const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.65, 18), pinkCoolantMat);
+          bottle.position.y = 0.42;
+          itemMesh.add(bottle);
+
+          const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.14, 0.14, 14), pinkCoolantMat);
+          neck.position.y = 0.80;
+          itemMesh.add(neck);
+
+          const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.08, 14), chromeMat);
+          cap.position.y = 0.90;
+          itemMesh.add(cap);
+
+          const label = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.233, 0.242, 0.30, 18, 1, true),
+            new THREE.MeshBasicMaterial({ map: coolantLabelTex })
+          );
+          label.position.y = 0.42;
+          itemMesh.add(label);
+
+          points = 10;
+          toastText = "+10 Frisches Kühlmittel G12+!";
+          badgeTex = badgeTextures.coolant;
+        } else {
+          const box = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.44, 0.44), redCapMat);
+          box.position.y = 0.34;
+          itemMesh.add(box);
+
+          const lid = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.12, 0.46), redCapMat);
+          lid.position.y = 0.60;
+          itemMesh.add(lid);
+
+          const handle = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.06), chromeMat);
+          handle.position.y = 0.70;
+          itemMesh.add(handle);
+
+          [-0.22, 0.22].forEach((lx) => {
+            const latch = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.03), chromeMat);
+            latch.position.set(lx, 0.54, 0.235);
+            itemMesh.add(latch);
+          });
+
+          points = 25;
+          toastText = "+25 Opel-Ersatzteilkoffer!";
+          badgeTex = badgeTextures.toolbox;
+        }
+
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95));
+        hitbox.visible = false;
+        hitbox.position.y = 0.48;
+        group.add(hitbox);
+
+        group.add(createFloatingBadge(badgeTex, 1.55));
+
+        return {
+          mesh: group,
+          spinMesh: itemMesh,
+          hitbox,
+          points,
+          toastText
+        };
+      }
+
+      // ============================================================
+      // 7. SPIELZUSTAND, MENÜ-WECHSEL & STEUERUNG
+      // ============================================================
+
+      const car = createOpelFronteraB();
+      const player = car.root;
+      player.position.set(0, 0, 2.2);
+      scene.add(player);
+
+      let obstacles = [];
+      let pickups = [];
+      let score = 0;
+      let speed = 17;
+      let spawnTimer = 0;
+      let totalTime = 0;
+      let gameState = "START_MENU"; // "START_MENU" | "PLAYING" | "GAME_OVER"
+
+      const keys = { left: false, right: false };
+      let dragSteerTilt = 0;
+
+      function cyclePaintColor() {
+        currentColorIndex = (currentColorIndex + 1) % paintColors.length;
+        paintMat.color.setHex(paintColors[currentColorIndex]);
+      }
+
+      function cycleCameraMode() {
+        currentCamMode = (currentCamMode + 1) % cameraModes.length;
+      }
+
+      function clearWorldObjects() {
+        obstacles.forEach((obj) => scene.remove(obj.mesh));
+        pickups.forEach((item) => scene.remove(item.mesh));
+        obstacles = [];
+        pickups = [];
+      }
+
+      function startNewGame() {
+        const driver = saveUsername(usernameInput.value);
+        hudDriverEl.textContent = "Fahrer: " + driver;
+
+        clearWorldObjects();
+        player.position.x = 0;
+        player.rotation.y = 0;
+        car.body.rotation.z = 0;
+        score = 0;
+        speed = 17;
+        spawnTimer = 0;
+        keys.left = false;
+        keys.right = false;
+        dragSteerTilt = 0;
+        btnLeft.classList.remove("active");
+        btnRight.classList.remove("active");
+
+        scoreEl.textContent = "0";
+        pickupToastEl.classList.remove("visible");
+        startMenuEl.classList.add("hidden");
+        gameOverScreen.classList.add("hidden");
+        hudEl.classList.remove("hidden");
+        touchControlsEl.classList.remove("hidden");
+
+        gameState = "PLAYING";
+      }
+
+      function openStartMenu() {
+        clearWorldObjects();
+        player.position.x = 0;
+        player.rotation.y = 0;
+        car.body.rotation.z = 0;
+        keys.left = false;
+        keys.right = false;
+        dragSteerTilt = 0;
+        btnLeft.classList.remove("active");
+        btnRight.classList.remove("active");
+
+        hudEl.classList.add("hidden");
+        touchControlsEl.classList.add("hidden");
+        gameOverScreen.classList.add("hidden");
+        renderHighscoreTables();
+        startMenuEl.classList.remove("hidden");
+
+        gameState = "START_MENU";
+      }
+
+      function triggerGameOver(obsObj) {
+        gameState = "GAME_OVER";
+        keys.left = false;
+        keys.right = false;
+        activeTouchId = null;
+        dragSteerTilt = 0;
+        btnLeft.classList.remove("active");
+        btnRight.classList.remove("active");
+
+        const isNewTop5 = recordHighscore(currentPlayerName, score);
+
+        crashTitleEl.textContent = obsObj.title;
+        crashDetailEl.textContent = obsObj.detail;
+        finalDriverEl.textContent = currentPlayerName;
+        finalScoreEl.textContent = Math.floor(score);
+
+        if (isNewTop5) {
+          recordBannerEl.classList.remove("hidden");
+        } else {
+          recordBannerEl.classList.add("hidden");
+        }
+
+        hudEl.classList.add("hidden");
+        touchControlsEl.classList.add("hidden");
+        gameOverScreen.classList.remove("hidden");
+      }
+
+      // Menü-Buttons & Enter im Namensfeld
+      startBtn.addEventListener("click", startNewGame);
+      menuColorBtn.addEventListener("click", cyclePaintColor);
+      restartBtn.addEventListener("click", startNewGame);
+      toMenuBtn.addEventListener("click", openStartMenu);
+
+      usernameInput.addEventListener("keydown", (e) => {
+        if (e.code === "Enter") {
+          e.preventDefault();
+          startNewGame();
+        }
+      });
+
+      // Tastatursteuerung (PC)
+      window.addEventListener("keydown", (e) => {
+        if (document.activeElement === usernameInput) return;
+
+        if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
+        if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
+        if (e.code === "KeyC") cyclePaintColor();
+        if (e.code === "KeyV") cycleCameraMode();
+        if (e.code === "Space" && gameState === "GAME_OVER") {
+          e.preventDefault();
+          startNewGame();
+        }
+      });
+
+      window.addEventListener("keyup", (e) => {
+        if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
+        if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
+      });
+
+      // HUD-Buttons
+      btnColor.addEventListener("click", cyclePaintColor);
+      btnCam.addEventListener("click", cycleCameraMode);
+
+      // Daumen-Buttons unten links & rechts
+      function bindSteerButton(buttonEl, direction) {
+        const startPress = (e) => {
+          e.preventDefault();
+          keys[direction] = true;
+          buttonEl.classList.add("active");
+        };
+        const endPress = (e) => {
+          e.preventDefault();
+          keys[direction] = false;
+          buttonEl.classList.remove("active");
+        };
+
+        buttonEl.addEventListener("pointerdown", startPress);
+        buttonEl.addEventListener("pointerup", endPress);
+        buttonEl.addEventListener("pointerleave", endPress);
+        buttonEl.addEventListener("pointercancel", endPress);
+      }
+
+      bindSteerButton(btnLeft, "left");
+      bindSteerButton(btnRight, "right");
+
+      // Direktes Finger-Wischen auf dem 3D-Spielfeld (Touch-Drag)
+      let activeTouchId = null;
+      let lastTouchX = 0;
+
+      renderer.domElement.addEventListener(
+        "touchstart",
+        (e) => {
+          if (gameState !== "PLAYING") return;
+          if (activeTouchId === null && e.changedTouches.length > 0) {
+            const touch = e.changedTouches[0];
+            activeTouchId = touch.identifier;
+            lastTouchX = touch.clientX;
+          }
+        },
+        { passive: true }
+      );
+
+      renderer.domElement.addEventListener(
+        "touchmove",
+        (e) => {
+          if (gameState !== "PLAYING" || activeTouchId === null) return;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            if (touch.identifier === activeTouchId) {
+              e.preventDefault();
+              const deltaX = touch.clientX - lastTouchX;
+              lastTouchX = touch.clientX;
+
+              const sensitivity = 10.5 / Math.min(window.innerWidth, 520);
+              player.position.x += deltaX * sensitivity;
+              player.position.x = Math.max(-4.1, Math.min(4.1, player.position.x));
+
+              dragSteerTilt = Math.max(-1, Math.min(1, deltaX * 0.08));
+              break;
+            }
+          }
+        },
+        { passive: false }
+      );
+
+      function endCanvasTouch(e) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeTouchId) {
+            activeTouchId = null;
+            dragSteerTilt = 0;
+            break;
+          }
+        }
+      }
+
+      renderer.domElement.addEventListener("touchend", endCanvasTouch, { passive: true });
+      renderer.domElement.addEventListener("touchcancel", endCanvasTouch, { passive: true });
+
+      window.addEventListener("resize", () => {
+        updateCameraProjection();
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      const obstacleBuilders = [
+        createEngineDamageMesh,
+        createGearboxDamageMesh,
+        createHeadGasketDamageMesh,
+        createRustSuspensionMesh,
+        createDiffDamageMesh
+      ];
+
+      const pickupTypes = ["oil", "battery", "filter", "coolant", "toolbox"];
+
+      function spawnObject() {
+        const randomX = (Math.random() - 0.5) * 8.0;
+
+        if (Math.random() < 0.66) {
+          const builder = obstacleBuilders[Math.floor(Math.random() * obstacleBuilders.length)];
+          const obsObj = builder();
+          obsObj.mesh.position.set(randomX, 0, -72);
+          scene.add(obsObj.mesh);
+          obstacles.push(obsObj);
+        } else {
+          const type = pickupTypes[Math.floor(Math.random() * pickupTypes.length)];
+          const itemObj = createPickupItem(type);
+          itemObj.mesh.position.set(randomX, 0, -72);
+          scene.add(itemObj.mesh);
+          pickups.push(itemObj);
+        }
+      }
+
+      // ============================================================
+      // 8. 60-FPS-LIMITER & HAUPTSCHLEIFE
+      // ============================================================
+      const TARGET_FPS = 60;
+      const FRAME_INTERVAL = 1000 / TARGET_FPS;
+      let lastFrameTime = performance.now();
+
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+          lastFrameTime = performance.now();
+        }
+      });
+
+      const playerBox = new THREE.Box3();
+      const playerCenter = new THREE.Vector3();
+      const playerSize = new THREE.Vector3(0.95, 0.95, 2.0);
+      const currentLookAt = new THREE.Vector3(0, 0.65, 2.2);
+      const showcaseCamPos = new THREE.Vector3();
+      const showcaseLookAt = new THREE.Vector3(0, 0.72, 2.2);
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        // Im Hintergrund-Tab komplett pausieren (0 % GPU-Auslastung)
+        if (document.hidden) {
+          lastFrameTime = now;
+          return;
+        }
+
+        const elapsed = now - lastFrameTime;
+        if (elapsed < FRAME_INTERVAL) {
+          return;
+        }
+
+        lastFrameTime = now - (elapsed % FRAME_INTERVAL);
+        const dt = Math.min(elapsed / 1000, 0.05);
+        totalTime += dt;
+        const camLerp = 1 - Math.exp(-8 * dt);
+
+        if (gameState === "START_MENU") {
+          const orbitAngle = Math.sin(totalTime * 0.45) * 0.65 + 0.55;
+          showcaseCamPos.set(
+            Math.sin(orbitAngle) * 4.4,
+            2.15,
+            2.2 + Math.cos(orbitAngle) * 4.4
+          );
+          camera.position.lerp(showcaseCamPos, camLerp);
+          currentLookAt.lerp(showcaseLookAt, camLerp);
+          camera.lookAt(currentLookAt);
+
+          const demoMoveZ = 6 * dt;
+          for (let i = 0; i < floorTiles.length; i++) {
+            floorTiles[i].position.z += demoMoveZ;
+            if (floorTiles[i].position.z > 12.5) {
+              floorTiles[i].position.z -= TOTAL_LENGTH;
+            }
+          }
+          const wheelRot = demoMoveZ / 0.27;
+          for (let i = 0; i < car.allWheelSpins.length; i++) {
+            car.allWheelSpins[i].rotation.x -= wheelRot;
+          }
+        } else {
+          const targetCam = cameraModes[currentCamMode];
+          camera.position.lerp(targetCam.pos, camLerp);
+          currentLookAt.lerp(targetCam.look, camLerp);
+          camera.lookAt(currentLookAt);
+        }
+
+        if (gameState === "PLAYING") {
+          speed += dt * 0.42;
+          score += dt * 5;
+          scoreEl.textContent = Math.floor(score);
+
+          const moveZ = speed * dt;
+          for (let i = 0; i < floorTiles.length; i++) {
+            floorTiles[i].position.z += moveZ;
+            if (floorTiles[i].position.z > 12.5) {
+              floorTiles[i].position.z -= TOTAL_LENGTH;
+            }
+          }
+
+          const wheelRotation = moveZ / 0.27;
+          for (let i = 0; i < car.allWheelSpins.length; i++) {
+            car.allWheelSpins[i].rotation.x -= wheelRotation;
+          }
+
+          const moveSpeed = 11.2;
+          const steerLerp = 1 - Math.exp(-14 * dt);
+          let targetRoll = 0;
+          let targetYaw = 0;
+          let targetSteer = 0;
+
+          if (keys.left) {
+            player.position.x -= moveSpeed * dt;
+            targetRoll = -0.11;
+            targetYaw = 0.08;
+            targetSteer = 0.35;
+          } else if (keys.right) {
+            player.position.x += moveSpeed * dt;
+            targetRoll = 0.11;
+            targetYaw = -0.08;
+            targetSteer = -0.35;
+          } else if (Math.abs(dragSteerTilt) > 0.01) {
+            targetRoll = dragSteerTilt * 0.11;
+            targetYaw = -dragSteerTilt * 0.08;
+            targetSteer = -dragSteerTilt * 0.35;
+            dragSteerTilt *= Math.pow(0.05, dt);
+          }
+
+          car.body.rotation.z = THREE.MathUtils.lerp(car.body.rotation.z, targetRoll, steerLerp);
+          player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, targetYaw, steerLerp);
+          car.frontWheels.forEach((wheel) => {
+            wheel.rotation.y = THREE.MathUtils.lerp(wheel.rotation.y, targetSteer, steerLerp);
+          });
+
+          player.position.x = Math.max(-4.1, Math.min(4.1, player.position.x));
+
+          spawnTimer += dt;
+          if (spawnTimer > Math.max(0.32, 0.82 - speed * 0.012)) {
+            spawnObject();
+            spawnTimer = 0;
+          }
+
+          playerCenter.set(player.position.x, 0.55, player.position.z);
+          playerBox.setFromCenterAndSize(playerCenter, playerSize);
+
+          for (let i = obstacles.length - 1; i >= 0; i--) {
+            const obsObj = obstacles[i];
+            obsObj.mesh.position.z += moveZ;
+            obsObj.update(dt, totalTime);
+
+            const obsBox = new THREE.Box3().setFromObject(obsObj.hitbox);
+            if (playerBox.intersectsBox(obsBox)) {
+              triggerGameOver(obsObj);
+              break;
+            }
+
+            if (obsObj.mesh.position.z > 12) {
+              scene.remove(obsObj.mesh);
+              obstacles.splice(i, 1);
+            }
+          }
+
+          for (let i = pickups.length - 1; i >= 0; i--) {
+            const itemObj = pickups[i];
+            itemObj.mesh.position.z += moveZ;
+            itemObj.spinMesh.rotation.y += 2.6 * dt;
+            itemObj.spinMesh.position.y = Math.sin(totalTime * 5 + i) * 0.06;
+
+            const itemBox = new THREE.Box3().setFromObject(itemObj.hitbox);
+            if (playerBox.intersectsBox(itemBox)) {
+              score += itemObj.points;
+              scoreEl.textContent = Math.floor(score);
+              showPickupToast(itemObj.toastText);
+              scene.remove(itemObj.mesh);
+              pickups.splice(i, 1);
+              continue;
+            }
+
+            if (itemObj.mesh.position.z > 12) {
+              scene.remove(itemObj.mesh);
+              pickups.splice(i, 1);
+            }
+          }
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      requestAnimationFrame(animate);
+    }
+  </script>
+</body>
+</html>
